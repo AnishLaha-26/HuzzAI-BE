@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-%3dy5501f_g*-h6=qvnok!ey)%2$=#(hx*+(w+-lry-3u-+viy
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # Custom user model
 AUTH_USER_MODEL = 'accounts.User'
@@ -85,7 +85,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Your frontend URL
     "http://127.0.0.1:3000",
     "http://172.27.9.94:5173",
-    
+    "http://172.27.9.94:3000",  # Added for network access
+    "http://172.27.9.94:8000",  # Added for network access
 ]
 
 CORS_ALLOW_CREDENTIALS = True
