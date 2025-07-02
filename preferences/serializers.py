@@ -2,16 +2,43 @@ from rest_framework import serializers
 from .models import Preferences
 
 class PreferenceSerializer(serializers.ModelSerializer):
+    # Add these fields to handle frontend field names
+    sex = serializers.ChoiceField(
+        choices=Preferences.SEX_CHOICES, 
+        required=True,
+        write_only=True
+    )
+    age_group = serializers.ChoiceField(
+        choices=Preferences.AGE_GROUP_CHOICES,
+        required=True,
+        write_only=True
+    )
+    dating_goal = serializers.ChoiceField(
+        choices=Preferences.DATING_GOAL_CHOICES,
+        required=True,
+        write_only=True
+    )
+    chat_platform = serializers.ChoiceField(
+        choices=Preferences.CHAT_PLATFORM_CHOICES,
+        required=False,
+        write_only=True,
+        allow_blank=True
+    )
+    rizz_styles = serializers.JSONField(
+        required=False,
+        write_only=True
+    )
+
     class Meta:
         model = Preferences
         fields = [
             'id',
-            'gender',
-            'age',
-            'goals',
-            'dating_frequency',
-            'rizz_style',
-            'preferred_platform',
+            'sex',
+            'age_group',
+            'dating_goal',
+            'chat_platform',
+            'rizz_styles',
+            'recent_dates',
             'created_at',
             'updated_at'
         ]

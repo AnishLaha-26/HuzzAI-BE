@@ -36,7 +36,18 @@ class PreferenceView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        serializer = PreferenceSerializer(data=request.data, context={'request': request})
+        # Map frontend field names to backend field names
+        data = request.data.copy()
+        if 'gender' in data:
+            data['sex'] = data.pop('gender')
+        if 'age' in data:
+            data['age_group'] = data.pop('age')
+        if 'goals' in data:
+            data['dating_goal'] = data.pop('goals')
+        if 'preferred_platform' in data:
+            data['chat_platform'] = data.pop('preferred_platform')
+            
+        serializer = PreferenceSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -48,11 +59,24 @@ class PreferenceView(APIView):
         """
         try:
             preferences = Preferences.objects.get(user=request.user)
-            serializer = PreferenceSerializer(preferences, data=request.data, partial=True)
+            
+            # Map frontend field names to backend field names
+            data = request.data.copy()
+            if 'gender' in data:
+                data['sex'] = data.pop('gender')
+            if 'age' in data:
+                data['age_group'] = data.pop('age')
+            if 'goals' in data:
+                data['dating_goal'] = data.pop('goals')
+            if 'preferred_platform' in data:
+                data['chat_platform'] = data.pop('preferred_platform')
+                
+            serializer = PreferenceSerializer(preferences, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
         except Preferences.DoesNotExist:
             return Response(
                 {"detail": "Preferences not found. Use POST to create new preferences."},
