@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     # 3rd-party
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_filters',
 
     # your apps
     'accounts.apps.AccountsConfig',  # custom accounts app with User model

@@ -1,15 +1,17 @@
-from rest_framework import status, generics
-from rest_framework.response import Response
+from rest_framework import status, generics, permissions
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenRefreshView
-from django.contrib.auth import authenticate, get_user_model
-from django.utils.translation import gettext_lazy as _
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer
-
-User = get_user_model()
+from .models import User
+from .serializers import (
+    UserSerializer, 
+    RegisterSerializer, 
+    LoginSerializer,
+    CustomTokenObtainPairSerializer
+)
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -26,61 +28,57 @@ class RegisterView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class LoginView(APIView):
+class LoginView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
 
-    def post(self, request, *args, **kwargs):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            refresh = RefreshToken.for_user(user)
-            
-            # Update last login time
-            user.save()
-            
-            return Response({
-                'user': UserSerializer(user).data,
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 class UserProfileView(generics.RetrieveUpdateAPIView):
-    permission_classes = [IsAuthenticated]
+    """
+    Retrieve or update user profile.
+    """
+    queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
 
-    def patch(self, request, *args, **kwargs):
-        return self.partial_update(request, *args, **kwargs)
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
-class LogoutView(APIView):
+class ChangePasswordView(generics.UpdateAPIView):
+    """
+    An endpoint for changing password.
+    """
+    serializer_class = None  # We'll define this in the method
+    model = User
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        try:
-            refresh_token = request.data.get("refresh")
-            if not refresh_token:
-                return Response(
-                    {"detail": _("Refresh token is required")}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-                
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception as e:
-            return Response(
-                {"detail": _("Invalid token")}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    def get_object(self, queryset=None):
+        return self.request.user
 
-class TokenRefreshView(TokenRefreshView):
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == 200:
-            user = request.user
-            if user.is_authenticated:
-                response.data['user'] = UserSerializer(user).data
-        return response
+    def update(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = request.data
+
+        # Check old password
+        if not self.object.check_password(data.get("old_password")):
+            return Response({"old_password": ["Wrong password."]}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check new password and confirmation match
+        if data.get("new_password") != data.get("new_password2"):
+            return Response({"new_password": ["New passwords must match"]}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Set the new password
+        self.object.set_password(data.get("new_password"))
+        self.object.save()
+        
+        return Response({"message": "Password updated successfully"}, 
+                       status=status.HTTP_200_OK)
