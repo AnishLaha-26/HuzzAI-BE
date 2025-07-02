@@ -1,9 +1,9 @@
 from rest_framework import serializers
-from .models import Preference
+from .models import Preferences
 
 class PreferenceSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Preference
+        model = Preferences
         fields = [
             'id',
             'sex',

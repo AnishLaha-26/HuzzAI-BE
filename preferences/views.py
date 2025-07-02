@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .models import Preference
+from .models import Preferences
 from .serializers import PreferenceSerializer
 
 # Create your views here.
@@ -16,10 +16,10 @@ class PreferenceView(APIView):
         Retrieve the current user's preferences
         """
         try:
-            preference = Preference.objects.get(user=request.user)
-            serializer = PreferenceSerializer(preference)
+            preferences = Preferences.objects.get(user=request.user)
+            serializer = PreferenceSerializer(preferences)
             return Response(serializer.data)
-        except Preference.DoesNotExist:
+        except Preferences.DoesNotExist:
             return Response(
                 {"detail": "Preferences not found"}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -47,13 +47,13 @@ class PreferenceView(APIView):
         Update existing preferences for the current user
         """
         try:
-            preference = Preference.objects.get(user=request.user)
-            serializer = PreferenceSerializer(preference, data=request.data, partial=True)
+            preferences = Preferences.objects.get(user=request.user)
+            serializer = PreferenceSerializer(preferences, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Preference.DoesNotExist:
+        except Preferences.DoesNotExist:
             return Response(
                 {"detail": "Preferences not found. Use POST to create new preferences."},
                 status=status.HTTP_404_NOT_FOUND

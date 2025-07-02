@@ -1,8 +1,6 @@
 from django.db import models
-from django.contrib.auth import get_user_model # this does not exitst yet (will exist when auth is done)
-
-# Get the User model
-User = get_user_model() 
+from django.conf import settings
+from django.contrib.auth import get_user_model
 
 class Preferences(models.Model):
     SEX_CHOICES = [
@@ -36,11 +34,16 @@ class Preferences(models.Model):
         ('OT', 'Other'),
     ]
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='preferences')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='preferences')
     sex = models.CharField(max_length=1, choices=SEX_CHOICES)
     age_group = models.CharField(max_length=5, choices=AGE_GROUP_CHOICES)
     dating_goal = models.CharField(max_length=3, choices=DATING_GOAL_CHOICES)
-    recent_dates = models.PositiveIntegerField(help_text='Number of dates in the last 3 months')
+    recent_dates = models.JSONField(
+        help_text="List of recent date activities or preferences",
+        null=True,
+        blank=True,
+        default=list
+    )
     rizz_styles = models.JSONField(default=dict, help_text='Preferred communication styles and preferences')
     chat_platform = models.CharField(max_length=3, choices=CHAT_PLATFORM_CHOICES, null=True, blank=True)
     
