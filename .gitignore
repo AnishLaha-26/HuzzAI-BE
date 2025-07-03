@@ -1,1 +1,10 @@
+<<<<<<< HEAD
+=======
+backend/__pycache__/settings.cpython-313.pyc
+/accounts/__pycache__
+/accounts/__pycache__
+/accounts/__pycache__
+*.pyc
+>>>>>>> fbc82d230822ec8ddc3b7afd8732fb824b629ed8
+*.pyc
 *.pyc
