@@ -80,13 +80,15 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
 ]
 
-# CORS settings
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Your frontend URL
+    "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Add this line
+    "http://127.0.0.1:5173",  # And this line for good measure
     "http://172.27.9.94:5173",
-    "http://172.27.9.94:3000",  # Added for network access
-    "http://172.27.9.94:8000",  # Added for network access
+    "http://172.27.9.94:3000",
+    "http://172.27.9.94:8000",
+    "http://192.168.1.58:5173",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -163,6 +165,21 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Email Configuration
+# For development, you can use console backend to see emails in console
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# For production, configure SMTP settings:
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'  # or your SMTP server
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'your-email@gmail.com'
+# EMAIL_HOST_PASSWORD = 'your-app-password'  # Use app password for Gmail
+
+DEFAULT_FROM_EMAIL = 'noreply@yourapp.com'
+FRONTEND_URL = 'http://localhost:3000'  # Adjust based on your frontend URL
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -233,3 +250,4 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
+

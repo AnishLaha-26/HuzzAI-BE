@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.password_validation import validate_password
+from .models import PasswordResetToken
 
 User = get_user_model()
 
@@ -73,10 +75,77 @@ class LoginSerializer(serializers.Serializer):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        refresh = self.get_token(self.user)
         
-        data['refresh'] = str(refresh)
-        data['access'] = str(refresh.access_token)
-        data['user'] = UserSerializer(self.user).data
-        
+        # Add extra custom claims
+        data['user'] = {
+            'id': self.user.id,
+            'email': self.user.email,
+            'first_name': self.user.first_name,
+            'last_name': self.user.last_name,
+        }
         return data
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Serializer for forgot password request"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Check if user with this email exists"""
+        try:
+            user = User.objects.get(email=value)
+            if not user.is_active:
+                raise serializers.ValidationError(_("User account is disabled."))
+        except User.DoesNotExist:
+            # Don't reveal if user exists or not for security
+            pass
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Serializer for password reset"""
+    token = serializers.UUIDField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    password_confirm = serializers.CharField(write_only=True, required=True)
+    
+    def validate_password(self, value):
+        """Validate password using Django's password validators"""
+        validate_password(value)
+        return value
+    
+    def validate(self, attrs):
+        """Validate that passwords match and token is valid"""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                'password_confirm': _("Password confirmation doesn't match.")
+            })
+        
+        # Validate token
+        try:
+            reset_token = PasswordResetToken.objects.get(token=attrs['token'])
+            if not reset_token.is_valid():
+                raise serializers.ValidationError({
+                    'token': _("Invalid or expired reset token.")
+                })
+            attrs['reset_token'] = reset_token
+        except PasswordResetToken.DoesNotExist:
+            raise serializers.ValidationError({
+                'token': _("Invalid reset token.")
+            })
+        
+        return attrs
+    
+    def save(self):
+        """Save the new password and mark token as used"""
+        reset_token = self.validated_data['reset_token']
+        user = reset_token.user
+        
+        # Update password
+        user.set_password(self.validated_data['password'])
+        user.save()
+        
+        # Mark token as used
+        reset_token.is_used = True
+        reset_token.save()
+        
+        return user

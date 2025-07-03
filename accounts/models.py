@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
+import uuid
+from django.utils import timezone
+from datetime import timedelta
 
 class UserManager(BaseUserManager):
     """Custom user model manager where email is the unique identifier"""
@@ -48,9 +51,39 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.email
         
     def get_full_name(self):
-        """Return the first_name plus the last_name, with a space in between."""
-        full_name = f"{self.first_name} {self.last_name}"
-        return full_name.strip()
+        return f"{self.first_name} {self.last_name}".strip()
+
+    def get_short_name(self):
+        return self.first_name
+
+
+class PasswordResetToken(models.Model):
+    """Model to store password reset tokens"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            # Token expires in 1 hour
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def is_valid(self):
+        return not self.is_used and not self.is_expired()
+    
+    class Meta:
+        verbose_name = _('Password Reset Token')
+        verbose_name_plural = _('Password Reset Tokens')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Reset token for {self.user.email}"
         
     def get_short_name(self):
         """Return the short name for the user."""

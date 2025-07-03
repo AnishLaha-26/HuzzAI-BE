@@ -3,13 +3,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.core.mail import send_mail
+from django.conf import settings
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
-from .models import User
+from .models import User, PasswordResetToken
 from .serializers import (
     UserSerializer, 
     RegisterSerializer, 
     LoginSerializer,
-    CustomTokenObtainPairSerializer
+    CustomTokenObtainPairSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -50,6 +56,111 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+
+
+class ForgotPasswordView(APIView):
+    """View to handle forgot password requests"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        print("\n=== ForgotPasswordView Reached ===")
+        print("Request data:", request.data)
+        print("Request headers:", dict(request.headers))
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            
+            try:
+                user = User.objects.get(email=email, is_active=True)
+                
+                # Create password reset token
+                reset_token = PasswordResetToken.objects.create(user=user)
+                
+                # Send email with reset link
+                self.send_reset_email(user, reset_token)
+                
+                return Response({
+                    'message': 'If your email exists in our system, you will receive a password reset link.'
+                }, status=status.HTTP_200_OK)
+                
+            except User.DoesNotExist:
+                # Don't reveal if user exists or not for security
+                return Response({
+                    'message': 'If your email exists in our system, you will receive a password reset link.'
+                }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def send_reset_email(self, user, reset_token):
+        """Send password reset email to user"""
+        try:
+            # Create the reset URL - you'll need to adjust this URL based on your frontend
+            reset_url = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')}/reset-password?token={reset_token.token}"
+            
+            subject = 'Password Reset Request'
+            
+            # Create HTML email content
+            html_message = f"""
+            <html>
+            <body>
+                <h2>Password Reset Request</h2>
+                <p>Hello {user.get_full_name() or user.email},</p>
+                <p>You have requested to reset your password. Click the link below to reset your password:</p>
+                <p><a href="{reset_url}" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Reset Password</a></p>
+                <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                <p>{reset_url}</p>
+                <p>This link will expire in 1 hour.</p>
+                <p>If you didn't request this password reset, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>Your App Team</p>
+            </body>
+            </html>
+            """
+            
+            # Create plain text version
+            plain_message = f"""
+            Password Reset Request
+            
+            Hello {user.get_full_name() or user.email},
+            
+            You have requested to reset your password. Click the link below to reset your password:
+            {reset_url}
+            
+            This link will expire in 1 hour.
+            
+            If you didn't request this password reset, please ignore this email.
+            
+            Best regards,
+            Your App Team
+            """
+            
+            send_mail(
+                subject=subject,
+                message=plain_message,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@yourapp.com'),
+                recipient_list=[user.email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+            
+        except Exception as e:
+            # Log the error in production
+            print(f"Failed to send password reset email: {str(e)}")
+
+
+class ResetPasswordView(APIView):
+    """View to handle password reset"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'message': 'Password has been reset successfully. You can now login with your new password.'
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ChangePasswordView(generics.UpdateAPIView):
     """
