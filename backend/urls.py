@@ -1,13 +1,11 @@
+# backend/urls.py
 from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    # Admin Panel
     path('admin/', admin.site.urls),
-
-    # Accounts App (Authentication)
     path('api/accounts/', include('accounts.urls')),
-
-    # Preferences App (Protected)
     path('api/preferences/', include('preferences.urls')),
+    path('api/analyzer/', include('analyzer.urls')),  # Analyzer URLs
+    path('api/', include('responses.urls')),
 ]
