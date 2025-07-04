@@ -56,3 +56,4 @@ class PreferenceSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
