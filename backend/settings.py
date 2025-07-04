@@ -12,6 +12,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,10 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%3dy5501f_g*-h6=qvnok!ey)%2$=#(hx*+(w+-lry-3u-+viy'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-%3dy5501f_g*-h6=qvnok!ey)%2$=#(hx*+(w+-lry-3u-+viy')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
@@ -66,8 +71,7 @@ INSTALLED_APPS = [
     # Local apps
     'accounts.apps.AccountsConfig',
     'preferences',
-    'analyzer',
-    'responses.apps.ResponsesConfig',
+    'rizz_analyzer',
 ]
 
 # Also make sure you have these middleware classes in the correct order:
@@ -97,6 +101,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.1.58:5174",
     "http://192.168.1.35:5173",
     "http://192.168.1.35:5174",
+    
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -172,6 +177,14 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# OpenAI API Key
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+# File Upload Settings - Increase limits for base64 image uploads
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10240  # Default is 1000
 
 # Email Configuration
 # For development, you can use console backend to see emails in console

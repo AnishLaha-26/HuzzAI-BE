@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class AnalyzerConfig(AppConfig):
+class RizzAnalyzerConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'analyzer'
+    name = 'rizz_analyzer'
