@@ -8,3 +8,4 @@ backend/__pycache__/settings.cpython-313.pyc
 >>>>>>> fbc82d230822ec8ddc3b7afd8732fb824b629ed8
 *.pyc
 *.pyc
+.env
