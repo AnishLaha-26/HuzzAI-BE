@@ -22,6 +22,8 @@ flask-cors==6.0.1
 # Server
 uvicorn==0.31.1
 gunicorn==23.0.0
+dj-database-url==2.1.0
+whitenoise==6.6.0
 
 # HTTP/API
 h11==0.16.0
