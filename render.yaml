@@ -1,0 +1,75 @@
+# Render Blueprint for HuzzAI Backend
+# This file defines the infrastructure as code for deploying the Django backend on Render
+
+services:
+  # Main Django Application
+  - type: web
+    name: huzzai-backend
+    env: python
+    region: singapore  # Choose a region closest to your users
+    build:
+      buildCommand: |
+        pip install -r requirements.txt
+        python manage.py collectstatic --noinput
+      startCommand: gunicorn backend.wsgi:application --log-file -
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: DISABLE_COLLECTSTATIC
+        value: 1
+      # Database configuration (PostgreSQL)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: huzzai-db
+          property: connectionString
+      # Django secret key - generate a secure one for production
+      - key: SECRET_KEY
+        generateValue: true
+      # Add other environment variables from your .env file
+      - key: DEBUG
+        value: 'False'
+      - key: ALLOWED_HOSTS
+        value: 'huzzai-backend.onrender.com,localhost,127.0.0.1'
+      # OpenAI API Key - Make sure to set this in Render's dashboard
+      - key: OPENAI_API_KEY
+        sync: false
+    # Resource scaling
+    plan: free  # Start with free tier, upgrade as needed
+    numInstances: 1
+    healthCheckPath: /api/health/
+    autoDeploy: true
+
+  # PostgreSQL Database
+  - type: postgres
+    name: huzzai-db
+    databaseName: huzzai
+    user: huzzai_user
+    region: singapore  # Should match the web service region
+    plan: free  # Start with free tier, upgrade as needed
+    # Database initialization (runs on first deploy)
+    initScript: |
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    # Database backup settings
+    backupRetentionInDays: 7
+    backupSchedule: "0 0 * * *"  # Daily at midnight
+
+# Add any background workers or other services here if needed
+# workers:
+#   - type: worker
+#     name: huzzai-worker
+#     env: python
+#     region: singapore
+#     buildCommand: pip install -r requirements.txt
+#     startCommand: python manage.py process_tasks
+#     envVars:
+#       - key: PYTHON_VERSION
+#         value: 3.10.13
+#       - key: DJANGO_SETTINGS_MODULE
+#         value: backend.settings
+#     plan: free
+#     numInstances: 1
+#     autoDeploy: true

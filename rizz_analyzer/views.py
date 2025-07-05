@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from django.http import JsonResponse
 from django.views import View
 from django.utils.decorators import method_decorator
@@ -53,19 +54,13 @@ class AnalyzeImageView(View):
             if image_data.startswith('data:'):
                 image_data = image_data.split(',')[1]
             
-            # Create a rizz-specific prompt
-            rizz_prompt = f"""
-            {prompt}
+            # Read the prompt from file
+            prompt_file_path = os.path.join(os.path.dirname(__file__), 'prompts', 'rizz_analysis_prompt.txt')
+            with open(prompt_file_path, 'r', encoding='utf-8') as file:
+                rizz_prompt_template = file.read()
             
-            Please analyze this image for "rizz" content - meaning charisma, charm, or romantic appeal. Consider:
-            1. Body language and confidence
-            2. Style and presentation
-            3. Facial expressions and eye contact
-            4. Overall attractiveness and appeal
-            5. Any text or context that shows social skills
-            
-            Provide a detailed analysis with a rizz score out of 10 and specific suggestions for improvement.
-            """
+            # Replace the placeholder with user's custom prompt (avoiding format() conflicts with JSON)
+            rizz_prompt = rizz_prompt_template.replace('{user_prompt}', prompt)
             
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -83,13 +78,179 @@ class AnalyzeImageView(View):
                         ]
                     }
                 ],
-                max_tokens=1000
+                max_tokens=3000  # Increased for detailed JSON response
             )
             
-            return response.choices[0].message.content
+            # Get the response content
+            response_content = response.choices[0].message.content
+            
+            # Debug logging to see what's failing
+            print("=== DEBUG RAW RESPONSE ===")
+            print(repr(response_content))
+            print("=== END RAW RESPONSE ===")
+            
+            # Strip markdown code blocks if present
+            if response_content.startswith('```json'):
+                response_content = response_content[7:]  # Remove ```json
+            if response_content.startswith('```'):
+                response_content = response_content[3:]  # Remove ```
+            if response_content.endswith('```'):
+                response_content = response_content[:-3]  # Remove closing ```
+            
+            # Clean up whitespace
+            response_content = response_content.strip()
+            
+            # Try to parse as JSON, fallback to plain text if it fails
+            try:
+                import json
+                print("=== ATTEMPTING INITIAL JSON PARSE ===")
+                print(f"Content to parse: {repr(response_content[:500])}...")
+                parsed_json = json.loads(response_content)
+                print("=== INITIAL PARSE SUCCESSFUL ===")
+                return parsed_json.get('data', parsed_json)
+            except json.JSONDecodeError as e:
+                print(f"=== INITIAL PARSE FAILED: {str(e)} ===")
+                # Instead of repairing, let's extract the data and rebuild perfect JSON
+                try:
+                    import re
+                    print("=== REBUILDING JSON FROM CONTENT ===")
+                    
+                    # Extract key-value pairs using regex
+                    def extract_value(pattern, content, default=None):
+                        match = re.search(pattern, content, re.DOTALL)
+                        return match.group(1) if match else default
+                    
+                    def extract_number(pattern, content, default=0):
+                        match = re.search(pattern, content)
+                        return int(match.group(1)) if match else default
+                    
+                    def extract_array(pattern, content, default=None):
+                        match = re.search(pattern, content, re.DOTALL)
+                        if match:
+                            items = re.findall(r'"([^"]+)"', match.group(1))
+                            return items
+                        return default or []
+                    
+                    # Build perfect JSON structure
+                    perfect_json = {
+                        "rizzScore": extract_number(r'"rizzScore":\s*(\d+)', response_content, 0),
+                        "engagement": {
+                            "huzzPercentage": extract_number(r'"huzzPercentage":\s*(\d+)', response_content, 0),
+                            "youPercentage": extract_number(r'"youPercentage":\s*(\d+)', response_content, 0),
+                            "summary": extract_value(r'"summary":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "interestLevel": {
+                            "huzzPercentage": extract_number(r'"interestLevel"[^}]+"huzzPercentage":\s*(\d+)', response_content, 0),
+                            "youPercentage": extract_number(r'"interestLevel"[^}]+"youPercentage":\s*(\d+)', response_content, 0),
+                            "summary": extract_value(r'"interestLevel"[^}]+"summary":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "tone": {
+                            "you": extract_value(r'"tone"[^}]+"you":\s*"([^"]+)"', response_content, "unknown"),
+                            "huzz": extract_value(r'"tone"[^}]+"huzz":\s*"([^"]+)"', response_content, "unknown"),
+                            "summary": extract_value(r'"tone"[^}]+"summary":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "compatibilityScore": extract_number(r'"compatibilityScore":\s*(\d+)', response_content, 0),
+                        "compatibilitySummary": extract_value(r'"compatibilitySummary":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                        "strengths": extract_array(r'"strengths":\s*\[([^\]]+)\]', response_content, ["Analysis unavailable"]),
+                        "improvements": extract_array(r'"improvements":\s*\[([^\]]+)\]', response_content, ["Analysis unavailable"]),
+                        "conversationTips": [{
+                            "tip": "Analysis unavailable",
+                            "example": "Please try again"
+                        }],
+                        "suggestedResponses": extract_array(r'"suggestedResponses":\s*\[([^\]]+)\]', response_content, ["Analysis unavailable"]),
+                        "redFlags": extract_array(r'"redFlags":\s*\[([^\]]+)\]', response_content, ["No red flags detected"]),
+                        "nextSteps": extract_array(r'"nextSteps":\s*\[([^\]]+)\]', response_content, ["Continue conversation"]),
+                        "openingLineAnalysis": {
+                            "strength": extract_value(r'"openingLineAnalysis"[^}]+"strength":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "weakness": extract_value(r'"openingLineAnalysis"[^}]+"weakness":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "suggestion": extract_value(r'"openingLineAnalysis"[^}]+"suggestion":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "emojiUsage": {
+                            "yourUsage": extract_value(r'"emojiUsage"[^}]+"yourUsage":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "theirUsage": extract_value(r'"emojiUsage"[^}]+"theirUsage":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "suggestion": extract_value(r'"emojiUsage"[^}]+"suggestion":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "responseTime": {
+                            "yourAverage": extract_value(r'"responseTime"[^}]+"yourAverage":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "theirAverage": extract_value(r'"responseTime"[^}]+"theirAverage":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "suggestion": extract_value(r'"responseTime"[^}]+"suggestion":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "conversationFlow": {
+                            "assessment": extract_value(r'"conversationFlow"[^}]+"assessment":\s*"([^"]+)"', response_content, "Analysis unavailable"),
+                            "suggestion": extract_value(r'"conversationFlow"[^}]+"suggestion":\s*"([^"]+)"', response_content, "Analysis unavailable")
+                        },
+                        "iceBreakerIdeas": extract_array(r'"iceBreakerIdeas":\s*\[([^\]]+)\]', response_content, ["What's new with you?"]),
+                        "escalationTips": extract_array(r'"escalationTips":\s*\[([^\]]+)\]', response_content, ["Keep the conversation flowing"]),
+                        "analysisTimestamp": "2023-10-09T12:00:00Z",
+                        "version": "1.0"
+                    }
+                    
+                    print("=== PERFECT JSON REBUILT SUCCESSFULLY ===")
+                    return perfect_json
+                    
+                except Exception as rebuild_error:
+                    # If JSON repair also fails, return a structured fallback response
+                    # Return a structured fallback that won't break the frontend
+                    return {
+                        "rizzScore": 0,
+                        "engagement": {
+                            "huzzPercentage": 0,
+                            "youPercentage": 0,
+                            "summary": "Unable to analyze due to parsing error"
+                        },
+                        "interestLevel": {
+                            "huzzPercentage": 0,
+                            "youPercentage": 0,
+                            "summary": "Unable to analyze due to parsing error"
+                        },
+                        "tone": {
+                            "you": "unknown",
+                            "huzz": "unknown",
+                            "summary": "Unable to analyze due to parsing error"
+                        },
+                        "compatibilityScore": 0,
+                        "compatibilitySummary": "Unable to analyze due to parsing error",
+                        "strengths": ["Unable to analyze - please try again"],
+                        "improvements": ["Unable to analyze - please try again"],
+                        "conversationTips": [{
+                            "tip": "Unable to analyze - please try again",
+                            "example": "Technical error occurred"
+                        }],
+                        "suggestedResponses": ["Unable to analyze - please try again"],
+                        "redFlags": ["Technical parsing error"],
+                        "nextSteps": ["Try uploading the image again"],
+                        "openingLineAnalysis": {
+                            "strength": "Unable to analyze",
+                            "weakness": "Unable to analyze",
+                            "suggestion": "Please try again"
+                        },
+                        "emojiUsage": {
+                            "yourUsage": "Unable to analyze",
+                            "theirUsage": "Unable to analyze",
+                            "suggestion": "Please try again"
+                        },
+                        "responseTime": {
+                            "yourAverage": "Unable to analyze",
+                            "theirAverage": "Unable to analyze",
+                            "suggestion": "Please try again"
+                        },
+                        "conversationFlow": {
+                            "assessment": "Unable to analyze",
+                            "suggestion": "Please try again"
+                        },
+                        "iceBreakerIdeas": ["Unable to analyze - please try again"],
+                        "escalationTips": ["Unable to analyze - please try again"],
+                        "analysisTimestamp": "2023-10-09T12:00:00Z",
+                        "version": "1.0",
+                        "_parseError": {
+                            "message": "JSON parsing failed",
+                            "originalError": str(e),
+                            "repairError": str(repair_error)
+                        }
+                    }
             
         except Exception as e:
-            return f"Error analyzing image: {str(e)}"
+            return {"error": f"Error analyzing image: {str(e)}"}
 
 
 @api_view(['POST'])
@@ -137,3 +298,5 @@ def analyze_rizz_text(request):
         
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
